@@ -1,6 +1,7 @@
 package main
 
 import (
+	"data"
 	"log"
 	"os"
 
@@ -13,6 +14,7 @@ type Dir struct {
 	Node
 	files       *[]*File
 	directories *[]*Dir
+	db          *data.Queries
 }
 
 func (d *Dir) Attr(ctx context.Context, a *fuse.Attr) error {
