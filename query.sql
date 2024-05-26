@@ -29,7 +29,7 @@ INSERT INTO directories (inode,name,parent) VALUES (?,?,?);
 SELECT * FROM directories WHERE name = ? LIMIT 1;
 
 -- name: SelectOneDirectoryInode :one
-SELECT * FROM directories WHERE name = ? LIMIT 1;
+SELECT * FROM directories WHERE inode = ? LIMIT 1;
 
 -- name: SelectDirectoriesParent :many
 SELECT * FROM directories WHERE parent = ?;

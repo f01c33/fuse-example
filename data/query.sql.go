@@ -159,11 +159,11 @@ func (q *Queries) SelectFilesParent(ctx context.Context, parent int64) ([]File, 
 }
 
 const selectOneDirectoryInode = `-- name: SelectOneDirectoryInode :one
-SELECT inode, name, parent FROM directories WHERE name = ? LIMIT 1
+SELECT inode, name, parent FROM directories WHERE inode = ? LIMIT 1
 `
 
-func (q *Queries) SelectOneDirectoryInode(ctx context.Context, name string) (Directory, error) {
-	row := q.db.QueryRowContext(ctx, selectOneDirectoryInode, name)
+func (q *Queries) SelectOneDirectoryInode(ctx context.Context, inode int64) (Directory, error) {
+	row := q.db.QueryRowContext(ctx, selectOneDirectoryInode, inode)
 	var i Directory
 	err := row.Scan(&i.Inode, &i.Name, &i.Parent)
 	return i, err

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"flag"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -17,14 +18,14 @@ import (
 )
 
 type Node struct {
-	inode uint64
+	inode int64
 	name  string
 }
 
-// var inode uint64
+// var inode int64
 
-func NewInode() uint64 {
-	return uint64(rand.Int63n(math.MaxInt64))
+func NewInode() int64 {
+	return int64(rand.Int63n(math.MaxInt64))
 }
 
 //go:generate sqlc generate
@@ -33,46 +34,52 @@ func NewInode() uint64 {
 var ddl string
 
 func buildFile(file data.File) *File {
-	f := File{Node: Node{inode: uint64(file.Inode), name: file.Name}, data: file.Data}
+	f := File{Node: Node{inode: file.Inode, name: file.Name}, data: file.Data, parent: file.Parent}
 	return &f
 }
 
-func buildDir(DB *data.Queries, dir data.Directory) (*Dir, error) {
-	d := Dir{Node: Node{inode: uint64(dir.Inode), name: dir.Name}}
+func buildDir(dir data.Directory) (*Dir, error) {
+	d := Dir{Node: Node{inode: dir.Inode, name: dir.Name}, directories: []*Dir{}, files: []*File{}}
 	dirs, err := DB.SelectDirectoriesParent(context.Background(), dir.Inode)
 	if err != nil {
 		return nil, err
 	}
+	// fmt.Println("dirs", dirs)
 	for _, dir := range dirs {
-		d, err := buildDir(DB, dir)
+		fmt.Println(dir.Name, "dir ", dir)
+		dr, err := buildDir(dir)
 		if err != nil {
 			return nil, err
 		}
-		*d.directories = append(*d.directories, d)
+		d.directories = append(d.directories, dr)
 	}
 	files, err := DB.SelectFilesParent(context.Background(), dir.Inode)
 	if err != nil {
 		return nil, err
 	}
 	for _, f := range files {
+		fmt.Println(dir.Name, "file", f)
 		file := buildFile(f)
-		*d.files = append(*d.files, file)
+		d.files = append(d.files, file)
 	}
+	fmt.Println(dir.Name, "directories", d.directories, "files", d.files)
 	return &d, nil
 }
 
-func buildFS(DB *data.Queries) (*FS, error) {
+func buildFS() (*FS, error) {
 	fs := FS{}
-	dir, err := DB.SelectOneDirectoryInode(context.Background(), "root")
+	dir, err := DB.SelectOneDirectoryInode(context.Background(), 0)
 	if err != nil {
 		return nil, err
 	}
-	fs.root, err = buildDir(DB, dir)
+	fs.root, err = buildDir(dir)
 	if err != nil {
 		return nil, err
 	}
 	return &fs, nil
 }
+
+var DB *data.Queries
 
 func main() {
 	mountPoint := ""
@@ -89,7 +96,13 @@ func main() {
 	if _, err := db.ExecContext(context.Background(), ddl); err != nil {
 		log.Fatal(err)
 	}
-	DB := data.New(db)
+	DB = data.New(db)
+	_ = DB.InsertDirectory(context.Background(), data.InsertDirectoryParams{
+		Inode:  0,
+		Name:   "root",
+		Parent: -1,
+	})
+
 	c, err := fuse.Mount(mountPoint)
 	if err != nil {
 		log.Fatal(err)
@@ -100,7 +113,7 @@ func main() {
 	// 	log.Panicln("kernel FUSE support is too old to have invalidations: version %v", p)
 	// }
 	srv := fs.New(c, nil)
-	filesys, err := buildFS(DB)
+	filesys, err := buildFS()
 	if err != nil {
 		log.Fatalln(err)
 	}
